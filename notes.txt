@@ -2,27 +2,65 @@ Basically there is an infinite grid and each cell can contain a robot, and any n
 
 Each robot can only "see" the cell it is on and the cell in front of it
 
+The tile the robot is on will be called "here" and the tile ahead will be called "there"
+
+State for here or there:
+-Robot Energy (RE) (RET)
+-Cell Food (FH) (FT)
+-Cell Pheromones (PH) (PT)
+-Relative Robot Direction?
+-Absolute X coord, Absolute Y coord (AX, AY)?
+
 Each tick each robot performs one action:
--Nothing
--Move forward one cell
--Turn left/right
--Eat food on the current tile
--Move food to or from the forward tile
--Place or remove pheromones from either tile
--Create a copy in the forward cell
--Attack the forward cell
--Maybe go back in time?
--Defend
--Gather energy
--Drop energy
+-Nothing (NOP)
+-Move to there (MTT)
+  -robot.loc = there, robot.energy--
+
+-Turn left/right (TL) (TR)
+  -robot.turn(), robot.energy--
+
+-Eat food here (EF)
+  -here.food--, robot.energy++
+
+-Drop food here (DF)
+  -here.food++, robot.energy--
+
+-Move food from here to there (MFT)
+  -here.food--, there.food++, robot.energy--
+
+-Move food from there to here (MFH)
+  -there.food--, here.food++, robot.energy--
+
+-Add or remove pheromones here (APH) (RPH)
+  -here.pher++ or here.pher--, robot.energy--
+
+-Add or remove pheromones there (APT) (RPT)
+  -there.pher++ or there.pher--, robot.energy--
+
+-Create a clone there (CLN)
+  -other = robot.clone(), other.loc = there, other.energy = robot.energy/2, robot.energy /=2
+
+-Attack there (ATK)
+  -robot.attack(), robot.energy--
+
+-Defend here (DEF)
+  -robot.defend(), robot.energy--
+
+-Charge (CHG)
+  robot.def--, robot.energy++
+
+-Maybe go back in time? (TT)
+
 
 Each of these has some cost to perform the action
 
 Each robot will have a "script" based on what it sees
 
 E.g.
-If ahead.food > here.food:
-  Movefoodhere()
+If RE < 10 and FH > 0:
+	EF FH		# Eat all the food here
+If CFT > CFH:
+	MFH FT		# Move all the food from there to here
 ...
 
 It would be an MMO where anyone can make a "script" and a new robot will randomly spawn
