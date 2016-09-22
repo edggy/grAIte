@@ -59,8 +59,10 @@ Each robot will have a "script" based on what it sees
 E.g.
 If RE < 10 and FH > 0:
 	EF FH		# Eat all the food here
-If CFT > CFH:
+elif CFT > CFH:
 	MFH FT		# Move all the food from there to here
+else:
+	CHG
 ...
 
 It would be an MMO where anyone can make a "script" and a new robot will randomly spawn
