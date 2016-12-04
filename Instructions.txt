@@ -1,0 +1,131 @@
+OP Code  - Description            (Args)->(Output)              Takes a full tick
+
+AHX ATX  - Get Abs Position X?    ()->(number)                  
+AHY ATY  - Get Abs Position Y?    ()->(number)                  
+AK       - Attack                 ()->(ET)                      *
+CHG      - Charge                 ()->(EH)                      *
+CLN      - Clone                  (number)->(T/F)               *
+DE       - Defend                 ()->(EH)                      *
+DH DT    - Get Direction?         ()->(number(direction))       
+EH ET	 - Get Energy             ()->(number)                  
+FDH FDT  - Drop Food              (number)->(FH)                *
+FEH FET  - Eat Food               (number)->(EH)                *
+FH FT    - Get Food               ()->(number)                     
+FMT FMH  - Move Food              (number)->(FT FH)             *
+JE       - Jump Equal             (number, number, number)->()  *
+JG       - Jump Greater           (number, number, number)->()  *
+JL       - Jump Less              (number, number, number)->()  *
+JN       - Jump Not Equal         (number, number, number)->()  *
+JU       - Jump Unconditionally   (number)->()                  *
+MA		 - Math Add               (number, number)->(number)    
+MBA      - Bitwise And            (number, number)->(number)
+MBO      - Bitwise Or             (number, number)->(number)
+MBN      - Bitwise Not            (number)->(number)
+MBX      - Bitwise Xor            (number, number)->(number)
+MD		 - Math Divide (Int Div)  (number, number)->(number)    
+MM		 - Math Multiply          (number, number)->(number)    
+MR		 - Math Remainder         (number, number)->(number)    
+MS		 - Math Subtract          (number, number)->(number)    
+MX       - Math Random            (number, number)->(number)    
+NH NT    - Get Agent Name         ()->(number)                    
+NOP      - No Op                  ()->()                        *
+NS       - Set Agent Name         (number)->()                  *
+PAH PAT  - Add Pheromones         (number)->(PH PT)             *
+PH PT    - Get Pheromones         ()->(number)                       
+PRH PRT  - Remove Pheromones      (number)->(PH PT)             *
+TL TR    - Turn Left              ()->(DH)                      *
+TT?      - Time Travel            ()->(T/F)                     *
+X        - Move                   ()->(T/F)                     *
+
+A
+	H			- Get Absolute Position Here?
+	K			- Attack
+	T			- Get Absolute Position There?
+	
+C
+	H			- Charge
+	L			- Clone
+
+D
+	E			- Defend
+	H			- Get Direction Here?
+	T			- Get Direction There?
+	
+E	
+	F			- Eat Food
+	H			- Get Energy Here
+	T			- Get Energy There
+
+F	
+	D
+		H      - Drop Food Here
+		T      - Drop Food There
+	E
+		H       - Eat Food Here
+		T       - Eat Food There
+	H           - Get Food Here
+	M
+		H       - Move Food Here
+		T       - Move Food Here
+	T           - Get Food There
+
+J
+	E        - Jump Equal
+	G        - Jump Greater
+	L        - Jump Less 
+	N        - Jump Not Equal 
+	U        - Jump Unconditionally
+	
+M
+	A			- Math Add
+	B
+		A       - Bitwise And
+		O       - Bitwise Or
+		N       - Bitwise Not
+		X       - Bitwise Xor
+	D           - Math Divide (Int Div)
+	M           - Math Multiply
+	R           - Math Remainder
+	S           - Math Subtract
+	X           - Math Random
+	
+N
+	H			- Get Agent Name Here
+	OP			- No Op
+	T			- Get Agent Name There
+	S           - Set Agent Name
+
+P
+	A
+		H       - Add Pheromones Here
+		T       - Add Pheromones There
+	H           - Get Pheromones Here
+	R
+		H       - Remove Pheromones Here
+		T       - Remove Pheromones There
+	T           - Get Pheromones There
+	
+Q               - Literal
+
+T
+	L           - Turn Left
+	R           - Turn Right
+	T           - Time Travel
+	
+X               - Move
+
+Examples:
+Move all food to here then check if there is more food and repeat (bucket brigade)
+FMH FT JG FT Q0 Q-5
+
+FMH1
+FMH0,FT0
+*TICK*
+JG3
+JG2,FT0
+JG1,FT0,Q0
+JG1,FT0,Q0,Q-5
+*TICK*
+
+Jump if food here + energy here > food there + energy there
+JG MA FH EH MA FT ET -1

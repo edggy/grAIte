@@ -1,60 +1,80 @@
-Basically there is an infinite grid and each cell can contain a robot, and any number of food and pheromones. 
+Basically there is an infinite grid and each cell can contain a agent, and any number of food and pheromones. 
 
-Each robot can only "see" the cell it is on and the cell in front of it
+Each agent can only "see" the cell it is on and the cell in front of it
 
-The tile the robot is on will be called "here" and the tile ahead will be called "there"
+The tile the agent is on will be called "here" and the tile ahead will be called "there"
 
 State for here or there:
--Robot Energy (RE) (RET)
--Cell Food (FH) (FT)
--Cell Pheromones (PH) (PT)
--Relative Robot Direction?
--Absolute X coord, Absolute Y coord (AX, AY)?
+-Agent Energy (EH) (ET)                          -> (-1,100)
+-Cell Food (FH) (FT)                             -> (0, 100)
+-Cell Pheromones (PH) (PT)                       -> (0, 100)
+-Relative Agent Direction? (DH) (DT)             -> ('', 'N','S','E','W')
+-Absolute X coord, Absolute Y coord (AX, AY)?    -> (number, number)
 
-Each tick each robot performs one action:
+Each tick each agent performs one action:
 -Nothing (NOP)
--Move to there (MTT)
-  -robot.loc = there, robot.energy--
+-Move to there (M)
+  -agent.loc = there, agent.energy--
 
 -Turn left/right (TL) (TR)
-  -robot.turn(), robot.energy--
+  -agent.turn(), agent.energy--
 
 -Eat food here (EF)
-  -here.food--, robot.energy++
+  -here.food--, agent.energy++
 
 -Drop food here (DF)
-  -here.food++, robot.energy--
+  -here.food++, agent.energy--
 
 -Move food from here to there (MFT)
-  -here.food--, there.food++, robot.energy--
+  -here.food--, there.food++, agent.energy--
 
 -Move food from there to here (MFH)
-  -there.food--, here.food++, robot.energy--
+  -there.food--, here.food++, agent.energy--
 
 -Add or remove pheromones here (APH) (RPH)
-  -here.pher++ or here.pher--, robot.energy--
+  -here.pher++ or here.pher--, agent.energy--
 
 -Add or remove pheromones there (APT) (RPT)
-  -there.pher++ or there.pher--, robot.energy--
+  -there.pher++ or there.pher--, agent.energy--
 
 -Create a clone there (CLN)
-  -other = robot.clone(), other.loc = there, other.energy = robot.energy/2, robot.energy /=2
+  -other = agent.clone(), other.loc = there, other.energy = agent.energy/2, agent.energy /=2
 
 -Attack there (ATK)
-  -robot.attack(), robot.energy--
+  -agent.attack(), agent.energy--
 
 -Defend here (DEF)
-  -robot.defend(), robot.energy--
+  -agent.defend(), agent.energy--
 
 -Charge (CHG)
-  robot.def--, robot.energy++
+  agent.def--, agent.energy++
 
 -Maybe go back in time? (TT)
 
+EH ET	- Get Energy             ()->(number)
+FH FT   - Get Food               ()->(number)
+PH PT   - Get Pheromones         ()->(number)
+NH NT   - Get Agent Name         ()->(number)
+DH DT?  - Get Direction          ()->(number(direction))
+AH AT?  - Get Absolute Position  ()->(number, number)
+NOP     - No Op                  ()
+M       - Move                   ()->(T/F)
+TL TR   - Turn Left              ()->(DH)
+EF      - Eat Food               (number)->(EH)
+DF      - Drop Food              (number)->(FH)
+MFT MFH - Move Food              (number)->(FT FH)
+APH APT - Add Pheromones         (number)->(PH PT)
+RPH RPT - Remove Pheromones      (number)->(PH PT)
+CLN     - Clone                  (number)->(T/F)
+ATK     - Attack                 ()->(ET)
+DEF     - Defend                 ()->(EH)
+CHG     - Charge                 ()->(EH)
+TT?     - Time Travel            ()->(T/F)
+SN      - Set Agent Name         (number)->()
 
 Each of these has some cost to perform the action
 
-Each robot will have a "script" based on what it sees
+Each agent will have a "script" based on what it sees
 
 E.g.
 If RE < 10 and FH > 0:
@@ -65,7 +85,13 @@ else:
 	CHG
 ...
 
-It would be an MMO where anyone can make a "script" and a new robot will randomly spawn
+
+Time Travel Notes:
+Time travelers become tainted upon return Taint = distance traveled
+Need to recompute all tainted Ants and adjacent cells, Taint = Taint - 1
+All other ants don't need to be recomputed
+
+It would be an MMO where anyone can make a "script" and a new agent will randomly spawn
 
 It is purely deterministic
 If I made a server that keeps track of one player, to add more players would be trivial
@@ -90,7 +116,7 @@ Like now I'm thinking of a defend action
 Cool. Will there be high scores?
 Start with a small one and make it bigger
 
-It will be an ongoing thing, maybe your score will equal the total amount of energy your robots have in total
+It will be an ongoing thing, maybe your score will equal the total amount of energy your agents have in total
 Turing-Complete :p
 
 Do you have any ideas? Also balancing is going to be a pain...
@@ -100,14 +126,14 @@ Well I need to set the costs, like time travel would be exponential to go back 1
 
 Moving will cost 1
 Turning will cost 1
-Duplicating will cost half and each new robot will have 1/2 of the remaining energy
+Duplicating will cost half and each new agent will have 1/2 of the remaining energy
 Make 3 lefts to go right :p
 Why would anyone ever timetravel?
 Well, there would be 2 of you, one would be ahead of the other. So if you found a big pile of food you can go back in time and make a pheromone trail for your past self to follow. Maybe to avoid an ambush form an enemy. 
 So weird...
 
 Time travel would also be duplication
-A really costly one... And you would be at your current location. I'm thinking that if I don't allow two robots on the same cell, then going back will be an instant kill
+A really costly one... And you would be at your current location. I'm thinking that if I don't allow two agents on the same cell, then going back will be an instant kill
 Duplicate, go back in time on top of an enemy, instakill
 OP plz nerf
 I don't know, it could be difficult. You have to know where your enemy was, (you can only see 2 cells per tick), get to that location, pay a big cost, and hope that you didn't miscalculate to instantly kill one of maybe dozens of your opponent's bots. And you might accidentally squish your own bot instead...
