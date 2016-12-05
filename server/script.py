@@ -39,7 +39,7 @@ class Script:
                         # Parse literal number
                         num = ''
                         for digit in f.read():
-                            if d not in (string.digits + '-bx' + string.uppercase[:6] + '+*/()' + '<>^~&|%'):
+                            if d not in (string.digits + '-bx' + string.uppercase[:6] + ' +*/()' + '<>^~&|%'):
                                 break
                             num += digit
                         f.seek(-1, io.SEEK_CUR)
