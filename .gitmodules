@@ -1,3 +1,3 @@
 [submodule "Vector"]
-	path = Vector
+	path = server/Vector
 	url = self:server/Vector
