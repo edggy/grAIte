@@ -32,3 +32,8 @@ class Cell:
     
     def __repr__(self):
         return '(%d,%d,%d)' % (self.actorID, self.food, self.pheromone)
+    
+    def getAdj(self, direction):
+        '''
+        Returns the cell adjacent to this one
+        '''

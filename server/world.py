@@ -1,6 +1,4 @@
 
-import agent
-
 class World:
     '''
     This is the world where all of the agents exist at a specific instace in time
@@ -8,14 +6,20 @@ class World:
     Each world is an infinite grid
     '''
     
-    def __init__(self, grid = None, agents = None, tick = 0):
+    def __init__(self, grid = None, actors = None, tick = 0):
         
         # Since the world will be sparse, we use a dict to store only the important locations
         # This is a dict of (x,y) -> Cell
         self.grid = grid
         
-        # This is a dict of actortID -> Actor
-        self.agents = agents
+        if self.grid is None:
+            self.grid = {}
+        
+        # This is a dict of actorID -> Actor
+        self.actors = actors
+        
+        if self.actors is None:
+            self.actors = {}
         
         # Keep track of what tick we are on
         self.tick = tick
@@ -32,19 +36,17 @@ class World:
         # Create a new grid to store all entities in the next tick
         newGrid = {}
         
-        for pos in self.grid:
+        # Iterate over all of the actors
+        for actor in self.actors:
             
-            cell = self.grid[pos]
+            # Run the actor
+            newHere, newThere = actor.tick()
             
-            # Get the current cellEntity
-            agent = self.agents[cell.agentID]
+            # Agent will return modifications
+            newGrid[newHere.location] = newHere
+            newGrid[newThere.location] = newThere
             
-            # Increase the entity by a tick
-            newAgent = agent.tick()
-            
-            # Store them in the new grid
-            oldCell = self.grid[newAgent.pos]
-            newGrid[newAgent.pos] = newCellEntity.agentID
+            # TODO: deal with conflicts
             
         # Increase the tick count by 1
         self.tick += 1

@@ -33,7 +33,10 @@ class Script:
                 # Check if tok is an opcode
                 if tok in opcodes.OP_CODES:
                     
+                    op = opcodes.OP_CODES[tok]
+                    
                     # Check if tok is the 'literal' opcode
+                    # TODO: Just use numbers as literals
                     if tok == opcodes.LITERAL_CODE:
                         
                         # Parse literal number
@@ -54,7 +57,7 @@ class Script:
                         # Add opcode to data
                         self.data.append(tok)
                         
-                        if tok in opcodes.TICK_CODES:
+                        if op.tick:
                             if lastIndex is not None:
                                 index = len(self.data)
                                 self.keys[lastIndex] = index
@@ -73,11 +76,10 @@ class Script:
         self.ip = nextKey
         return opStr
     
-    def execute(self, opStr):
+    def execute(self, actor, opStr):
         '''
         Executes a list of evaluated op codes
         
-        @return - The command to be executed in a tuple ('opcode', value)
         '''
         
         # JG MA 25 50 MA 2 0 -1
@@ -89,10 +91,11 @@ class Script:
         while len(opstack) > 0:
             p = opstack.pop()
             if p in opcodes.OP_CODES:
-                arity = opcodes.OP_CODES[p]
-                if len(argStack) > arity:
-                    args = [argStack.pop() for i in range(arity)]
-                    result = self.applyOpCode(p, args)
+                op = opcodes.OP_CODES[p]
+                if len(argStack) > op.arity:
+                    args = [argStack.pop() for i in range(op.arity)]
+                    #result = self.applyOpCode(p, args)
+                    result = op.function(actor, *args)
                     if result is not None:
                         argStack.append(result)
             else:
