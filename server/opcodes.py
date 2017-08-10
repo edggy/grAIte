@@ -1,14 +1,530 @@
 import random
+import copy
 
-class opcode:
-    def __init__(self, function, arity = 0, tick = False, cost = 0):
+import constants
+#from actor import Actor
+
+class opcode(object):
+    def __init__(self, function, arity = 0, tick = False, cost = None):
         self.function = function
         self.arity = arity
         self.tick = tick
         
-    def __call__(self, *args, **kargs):
-        return self.function(*args, **kargs)
+        if cost is None:
+            if self.tick:
+                self.cost = constants.DEFAULT_TICK_COST
+            else:
+                self.cost = constants.DEFAULT_NONTICK_COST
+        else:
+            self.cost = cost
+        
+    def __call__(self, actor, *args, **kargs):
+        kargs['cost'] = self.cost
+        if self.tick:
+            setupMove(actor)
+        return self.function(actor, *args, **kargs)
     
+def setupMove(actor):
+    actor.cells[nextCell.t+1] = [actor.here.next]
+    '''cellData = actor.here.next.data
+    if constants.OCCUPIED not in cellData:
+        cellData[constants.OCCUPIED] = {actor:0}
+    else:
+        cellData[constants.OCCUPIED][actor] = 0'''
+
+def setAmount(deltaAmount, costPerItem, curAmount, maxNetCost = None, maxAmount = None):
+
+    newAmount = curAmount + deltaAmount
+    
+    if maxAmount is not None and newAmount > maxAmount:
+        # Can't add to more than max
+        deltaAmount = maxAmount - curAmount
+    elif newAmount < 0:
+        # Can't remove to less than 0
+        deltaAmount = -curAmount
+    
+    if maxNetCost is not None:
+        netCost = abs(deltaAmount) * costPerItem
+        
+        if netCost > maxNetCost:
+            # Paying more than we have
+            if deltaAmount > 0:
+                deltaAmount = maxNetCost / costPerItem
+            else:
+                deltaAmount = -maxNetCost / costPerItem
+        
+    return deltaAmount
+
+LITERAL_CODE = '0123456789b-'
+
+
+def normalCost(f):
+    def wrapper(actor, *args, **kargs):
+        actor.energy -= kargs['cost']     
+        del kargs['cost']
+        return f(actor, *args, **kargs)
+    return wrapper  
+
+def hereThere(f):
+    def wrapper(actor, *args, **kargs):
+        return f(actor, actor.here, actor.there, *args, **kargs)
+    return wrapper
+
+def hereThereCopy(f):
+    def wrapper(actor, *args, **kargs):
+        return f(actor, copy.copy(actor.here), copy.copy(actor.there), *args, **kargs)
+    return wrapper
+        
+@normalCost
+@hereThere
+def AHX(actor, here, there):
+    '''
+    Get Abs Position X Here
+    '''
+    return here.x
+
+@normalCost
+@hereThere
+def ATX(actor, here, there):
+    '''
+    Get Abs Position X There
+    '''
+    return there.x
+
+@normalCost
+@hereThere
+def AHY(actor, here, there):
+    '''
+    Get Abs Position Y Here
+    '''
+    return here.y
+
+@normalCost
+@hereThere
+def ATY(actor, here, there):
+    '''
+    Get Abs Position Y There
+    '''
+    return there.y
+
+@normalCost
+@hereThereCopy
+def AK(actor, here, there):
+    '''
+    Attack
+    '''
+
+    # Put damage on There to be applied later
+    there.data[constants.DAMAGE] += constants.ATTACK_DAMAGE
+    
+    # Raise (or lower) the defense of Here to calculate damage later
+    here.data[constants.DEFENSE] += constants.ATTACK_DEFENSE
+    
+    return set([here, there])
+    
+@normalCost
+@hereThereCopy
+def CHG(actor, here, there):
+    '''
+    Charge
+    '''
+    # Energy will be added from negative 'cost'
+    
+    # Raise (or lower) the defense of Here to calculate damage later
+    here.data[constants.DEFENSE] += constants.CHARGE_DEFENSE
+    
+    return set([here])
+
+@normalCost
+@hereThereCopy
+def DE(actor, here, there):
+    '''
+    Defend
+    '''
+    # Raise (or lower) the defense of Here to calculate damage later
+    here.data[constants.DEFENSE] += constants.DEFEND_DEFENSE
+    
+    return set([here])
+
+@normalCost
+def DH(actor):
+    '''
+    Get Direction Here
+    '''
+    return constants.DIRECTIONS_VEC_NUM[actor.direction]
+
+@normalCost
+@hereThere
+def DT(actor, here, there):
+    '''
+    Get Direction There
+    '''
+    return constants.DIRECTIONS_VEC_NUM[there.actor.direction]
+
+@normalCost
+def EH(actor):
+    '''
+    Get Energy Here
+    '''
+    return actor.energy
+
+@normalCost
+@hereThere
+def ET(actor, here, there):
+    '''
+    Get Energy There
+    '''
+    return there.actor.energy
+
+@hereThereCopy
+def FDH(actor, here, there, amount, cost = 1):
+    '''
+    Drop Food Here
+    '''
+    amount = setAmount(amount, cost, here.food, agent.energy, constants.NUM_FOOD)
+    actor.energy -= amount*cost
+    
+    here.food += amount
+    
+    return set([here])
+
+@hereThereCopy
+def FDT(actor, here, there, amount, cost = 1):
+    '''
+    Drop Food There
+    '''
+    amount = setAmount(amount, cost, there.food, agent.energy, constants.NUM_FOOD)
+    actor.energy -= amount*cost
+    
+    there.food += amount
+    
+    return set([here, there])
+
+@hereThereCopy
+def FEH(actor, here, there, amount, cost = -1):
+    '''
+    Eat Food Here
+    '''
+    amount = setAmount(-amount, cost, here.food, agent.energy, constants.NUM_FOOD)
+    actor.energy -= amount*cost
+    
+    here.food -= amount
+    
+    return set([here])
+
+@hereThereCopy
+def FET(actor, here, there, amount, cost = -1):
+    '''
+    Eat Food There
+    '''
+    amount = setAmount(-amount, cost, there.food, agent.energy, constants.NUM_FOOD)
+    actor.energy -= amount*cost
+    
+    there.food -= amount
+    
+    return set([here, there])
+
+@normalCost
+@hereThere
+def FH(actor, here, there):
+    '''
+    Get Food Here
+    '''
+    return actor.here.food
+
+@normalCost
+@hereThere
+def FT(actor, here, there):
+    '''
+    Get Food There
+    '''
+    return actor.there.food
+
+@hereThereCopy
+def FMH(actor, here, there, amount, cost = 1):
+    '''
+    Move Food Here
+    '''
+    amount = min(setAmount(-amount, cost, here.food, agent.energy, constants.NUM_FOOD), setAmount(amount, cost, there.food, agent.energy, constants.NUM_FOOD))
+    actor.energy -= amount*cost
+    
+    here.food += amount
+    there.food -= amount
+    
+    return set([here, there])
+
+@hereThereCopy
+def FMT(actor, here, there, amount, cost = 1):
+    '''
+    Move Food There
+    '''
+    amount = min(setAmount(amount, cost, here.food, agent.energy, constants.NUM_FOOD), setAmount(-amount, cost, there.food, agent.energy, constants.NUM_FOOD))
+    actor.energy -= amount*cost
+    
+    here.food -= amount
+    there.food += amount
+    
+    return set([here, there])
+
+@normalCost
+def JE(actor, num1, num2, offset):
+    '''
+    Jump Equal	
+    '''
+    if num1 == num2:
+        actor.script.ip += offset
+
+@normalCost
+def JG(actor, num1, num2, offset):
+    '''
+    Jump Greater
+    '''
+    if num1 > num2:
+        actor.script.ip += offset
+
+@normalCost
+def JL(actor, num1, num2, offset):
+    '''
+    Jump Less
+    '''
+    if num1 < num2:
+        actor.script.ip += offset
+
+@normalCost
+def JN(actor, num1, num2, offset):
+    '''
+    Jump Not Equal
+    '''
+    if num1 != num2:
+        actor.script.ip += offset
+
+@normalCost
+def JU(actor, offset):
+    '''
+    Jump Unconditionally
+    '''
+    actor.script.ip += offset
+
+@normalCost
+def MA(actor, num1, num2):
+    '''
+    Math Add
+    '''
+    return num1 + num2
+
+@normalCost
+def MBA(actor, num1, num2):
+    '''
+    Bitwise And
+    '''
+    return num1 & num2
+
+@normalCost
+def MBO(actor, num1, num2):
+    '''
+    Bitwise Or
+    '''
+    return num1 | num2
+
+@normalCost
+def MBN(actor, num):
+    '''
+    Bitwise Not
+    '''
+    return ~num
+
+@normalCost
+def MBX(actor, num1, num2):
+    '''
+    Bitwise Xor
+    '''
+    return num1 ^ num2
+
+@normalCost
+def MD(actor, num1, num2):
+    '''
+    Math Divide
+    '''
+    return num1 / num2
+
+@normalCost
+def MM(actor, num1, num2):
+    '''
+    Math Multiply
+    '''
+    return num1 * num2
+
+@normalCost
+def MR(actor, num1, num2):
+    '''
+    Math Remainder
+    '''
+    return num1 % num2
+
+@normalCost
+def MS(actor, num1, num2):
+    '''
+    Math Subtract
+    '''
+    return num1 - num2
+
+@normalCost
+def MX(actor, num1, num2):
+    '''
+    Math Random
+    '''
+    return actor.randint(num1, num2)
+
+@normalCost
+def NH(actor):
+    '''
+    Get Actor Name Here
+    '''
+    return actor.name
+
+@normalCost
+@hereThere
+def NT(actor, here, there):
+    '''
+    Get Actor Name There
+    '''
+    return there.actor.name
+
+@normalCost
+@hereThereCopy
+def NOP(actor, here, there):
+    '''
+    No Op	
+    '''
+    return set([here])
+
+@normalCost
+@hereThereCopy
+def NS(actor, here, there, name):
+    '''
+    Set Actor Name
+    '''
+    actor.name = name
+    return set([here])
+
+@hereThereCopy
+def PAH(actor, here, there, amount, cost = 1):
+    '''
+    Add Pheromones Here
+    '''
+    amount = setAmount(amount, cost, here.pheromone, agent.energy, constants.NUM_PHEROMONES)
+    actor.energy -= amount*cost
+    
+    here.pheromone += amount
+        
+    return set([here])       
+
+@hereThereCopy
+def PAT(actor, here, there, amount, cost = 1):
+    '''
+    Add Pheromones There
+    '''
+    amount = setAmount(amount, cost, there.pheromone, agent.energy, constants.NUM_PHEROMONES)
+    actor.energy -= amount*cost
+    
+    there.pheromone += amount
+    
+    return set([here, there])    
+
+@normalCost
+@hereThere
+def PH(actor, here, there):
+    '''
+    Pheromones Here
+    '''
+    return here.pheromone
+
+@normalCost
+@hereThere
+def PT(actor, here, there):
+    '''
+    Pheromones There
+    '''
+    return there.pheromone
+
+@hereThereCopy
+def PRH(actor, here, there, amount, cost = 1):
+    '''
+    Remove Pheromones Here
+    '''
+    amount = setAmount(-amount, cost, here.pheromone, agent.energy, constants.NUM_PHEROMONES)
+    actor.energy -= amount*cost
+    
+    here.pheromone -= amount
+    
+    return set([here])
+
+@hereThereCopy
+def PRT(actor, here, there, amount, cost = 1):
+    '''
+    Remove Pheromones There
+    '''
+    amount = setAmount(-amount, cost, there.pheromone, agent.energy, constants.NUM_PHEROMONES)
+    actor.energy -= amount*cost
+    
+    there.pheromone -= amount
+    
+    return set([here, there])
+
+@hereThereCopy
+def S(actor, here, there, amount, cost = 1):
+    '''
+    Split
+    '''
+    amount = setAmount(amount, cost, 0, agent.energy)
+    actor.energy -= amount*cost
+    
+    newActor = actor.world.newActor(actor.agent, there, actor.direction, amount, actor.ip, 0, actor)
+    
+    return set([here, there])
+
+@normalCost
+@hereThere
+def TL(actor, here, there):
+    '''
+    Turn Left
+    '''
+    actor.direction = constants.DIRECTIONS_LEFT[actor.direction]
+    
+    return set([here])
+
+@normalCost
+@hereThere
+def TR(actor, here, there):
+    '''
+    Turn Right
+    '''
+    actor.direction = constants.DIRECTIONS_RIGHT[actor.direction]
+    
+    return set([here])
+
+def TT(actor, amount, cost = 1):
+    '''
+    Time Travel
+    '''
+    # TODO
+    actor.energy -= cost*2**amount
+
+@normalCost
+@hereThereCopy
+def X(actor, here, there):
+    '''
+    Move Forward
+    '''
+    
+    actor.cells[nextCell.t+1].insert(0, actor.there.next)
+    
+    #there.data[constants.OCCUPIED][actor] = 1
+    #here.data[constants.OCCUPIED][actor] = 2
+    
+    return set([here, there])
+
+
 OP_CODES = {
     'AHX':opcode(AHX), 
     'ATX':opcode(ATX), 
@@ -54,208 +570,9 @@ OP_CODES = {
     'PT':opcode(PT),
     'PRH':opcode(PRH, 1, True),
     'PRT':opcode(PRT, 1, True),
-    'Q':None,
+    'S':opcode(S, 1, True),
     'TL':opcode(TL, 0, True),
     'TR':opcode(TR, 0, True),
     'TT':opcode(TT, 1, True),
     'X':opcode(X, 0, True)
     }
-
-# dict of opcodes to arity
-
-'''
-OP_ARITY = {'AHX':0,'ATX':0,'AHY':0,'ATY':0,'AK':0,'CHG':0,'CLN':1,'DE':0,'DH':0,
-            'DT':0,'EH':0,'ET':0,'FDH':1,'FDT':1,'FEH':1,'FET':1,'FH':0,'FT':0,
-            'FMT':1,'FMH':1,'JE':3,'JG':3,'JL':3,'JN':3,'JU':1,'MA':2,'MBA':2,
-            'MBO':2,'MBN':1,'MBX':2,'MD':2,'MM':2,'MR':2,'MS':2,'MX':2,'NH':0,
-            'NT':0,'NOP':0,'NS':1,'PAH':1,'PAT':1,'PH':0,'PT':0,'PRH':1,'PRT':1,
-            'Q':0, 'TL':0,'TR':0,'TT':1,'X':0}
-'''
-
-LITERAL_CODE = 'Q'
-
-'''
-TICK_CODES = set(['AK','CHG','CLN','DE','FDH','FDT','FEH','FET',
-                  'FMT','FMH','JE','JG','JL','JN','JU','NOP','NS',
-                  'PAH','PAT','PRH','PRT','TL','TR','TT','X' ])
-'''
-'''
-OP_FUNCTIONS = {'AHX':AHX,'ATX':ATX,'AHY':AHY,'ATY':ATY,'AK':AK,'CHG':CHG,'CLN':CLN,'DE':DE,'DH':DH,
-                'DT':DT,'EH':EH,'ET':ET,'FDH':FDH,'FDT':FDT,'FEH':FEH,'FET':FET,'FH':FET,'FT':FT,
-                'FMT':FMT,'FMH':FMH,'JE':JE,'JG':JG,'JL':JL,'JN':JN,'JU':JU,'MA':MA,'MBA':MBA,
-                'MBO':MBO,'MBN':MBN,'MBX':MBX,'MD':MD,'MM':MM,'MR':MR,'MS':MS,'MX':MX,'NH':NH,
-                'NT':NT,'NOP':NOP,'NS':NS,'PAH':PAH,'PAT':PAT,'PH':PH,'PT':PT,'PRH':PRH,'PRT':PRT,
-                'Q':None, 'TL':TL,'TR':TR,'TT':TT,'X':X}
-'''
-
-def AHX(actor):
-    return actor.here.location[0]
-
-def ATX(actor):
-    return actor.there.location[0]
-
-def AHY(actor):
-    return actor.here.location[1]
-
-def ATY(actor):
-    return actor.there.location[1]
-
-def AK(actor):
-    pass
-
-def CHG(actor):
-    pass
-
-def DE(actor):
-    pass
-
-def DH(actor):
-    pass
-
-def DT(actor):
-    pass
-
-def EH(actor):
-    pass
-
-def ET(actor):
-    pass
-
-def FDH(actor, amount):
-    pass
-
-def FDT(actor, amount):
-    pass
-
-def FEH(actor, amount):
-    pass
-
-def FET(actor, amount):
-    pass
-
-def FH(actor):
-    pass
-
-def FT(actor):
-    pass
-
-def FMT(actor, amount):
-    pass
-
-def FMH(actor, amount):
-    pass
-
-def JE(actor, num1, num2, offset):
-    pass
-
-def JG(actor, num1, num2, offset):
-    pass
-
-def JL(actor, num1, num2, offset):
-    pass
-
-def JN(actor, num1, num2, offset):
-    pass
-
-def JU(actor, offset):
-    pass
-
-def MA(actor, num1, num2):
-    return num1 + num2
-
-def MBA(actor, num1, num2):
-    return num1 & num2
-
-def MBO(actor, num1, num2):
-    return num1 | num2
-
-def MBN(actor, num):
-    return ~num
-
-def MBX(actor, num1, num2):
-    return num1 ^ num2
-
-def MD(actor, num1, num2):
-    return num1 / num2
-
-def MM(actor, num1, num2):
-    return num1 * num2
-
-def MR(actor, num1, num2):
-    return num1 % num2
-
-def MS(actor, num1, num2):
-    return num1 - num2
-
-def MX(actor, num1, num2):
-    return random.randint(num1, num2)
-
-def NH(actor):
-    return actor.name
-
-def NT(actor):
-    pass
-
-def NOP(actor):
-    return None
-
-def NS(actor, name):
-    actor.name = name
-    return None
-
-def PAH(actor, amount):
-    pass
-
-def PAT(actor, amount):
-    pass
-
-def PH(actor):
-    '''
-    Pheromones Here
-    '''
-    return actor.here.pheromone
-
-def PT(actor):
-    '''
-    Pheromones There
-    '''
-    return actor.there.pheromone
-
-def PRH(actor, amount):
-    '''
-    Remove Pheromones Here
-    '''
-    pass
-
-def PRT(actor, amount):
-    '''
-    Remove Pheromones There
-    '''
-    pass
-
-def Q(actor):
-    return None
-
-def TL(actor):
-    '''
-    Turn Left
-    '''
-    pass
-
-def TR(actor):
-    '''
-    Turn Right
-    '''
-    pass
-
-def TT(actor, amount):
-    '''
-    Time Travel
-    '''
-    pass
-
-def X(actor):
-    '''
-    Move Forward
-    '''
-    pass

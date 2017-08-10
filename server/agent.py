@@ -1,21 +1,29 @@
+import os
 
-import cell
 import script
+import constants
 
-from Vector.vector import Vector
-
-class Actor:
+class Agent:
     '''
-    An agent is a script
+    An agent is a script in charge of it's actors
     
-    Each agent has a ID, a script, and energy
+    Each agent has a ID, a script, and a dict of actors -> actorData
     '''
-    def __init__(self, agentID, here, there, direction = Vector(1,0), energy = 100, ip = 0):
+    def __init__(self, agentID, scriptName = None, actors = None):
         self.agentID = agentID
-        self.script = script('%d.script' % agentID, ip)
-        self.energy = energy
-        self.here = here
-        self.there = there
-        self.location = cell.location
-        self.direction = direction
+        
+        if scriptName is None:
+            
+            self.scriptName = os.path.join(constants.SCRIPT_PATH, '%d.script' % agentID)
+            
+        if actors is None:
+            self.actors = {}
+    
+    def __str__(self):
+        actorIDs = [i.actorID for i in self.actors]
+        return '%s: %s\n%s' % (self.agentID, self.scriptName, actorIDs)
+    
+    def __repr__(self):
+        actorRepr = '\n'.join([repr(i) for i in self.actors])
+        return '%s: %s\n%s' % (self.agentID, self.scriptName, actorRepr)
         
