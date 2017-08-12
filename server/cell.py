@@ -55,7 +55,13 @@ class Cell(Cell3Dt):
         return '%s: (%s, %s, %s)' % (self.loc, self.food, self.pheromone, self.actor)
         
     def __repr__(self):
-        return '%r: (%r, %r, %s)' % (self.loc, self.food, self.pheromone, self.actor)
+        return ''.join(('loc=%r,food=%r,pheromone=%r,actor=(%s)' % (self.loc, self.food, self.pheromone, self.actor)).split())
     
     def __nonzero__(self):
         return self.actor is not None and self.food > 0 and self.pheromone > 0
+
+    def __copy__(self):
+        return type(self)(self.loc, self.grid, self.actor, self.food, self.pheromone)
+    
+    def __deepcopy__(self, memo):  
+        return type(self)(copy.deepcopy(self.loc), self.grid, copy.deepcopy(self.actor), copy.deepcopy(self.food), copy.deepcopy(self.pheromone))

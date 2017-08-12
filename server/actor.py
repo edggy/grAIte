@@ -7,7 +7,7 @@ import script
 import constants
 from Vector.vector import Vector
 
-sha256 = lambda x: int(hashlib.new('sha256', x).digest(), 16)
+sha256 = lambda x: int(hashlib.new('sha256', x).hexdigest(), 16)
 
 class Actor:
     '''
@@ -52,7 +52,7 @@ class Actor:
         
         self.status = None
         
-        self.cells = {}
+        self.path = {}
         
     @property
     def ip(self):
@@ -60,20 +60,35 @@ class Actor:
     
     @property
     def there(self):
-        self.there = self.here + self.direction
+        return self.here + self.direction
         
-    def __repr__(self):
+    def __str__(self):
         return '%s: %s' % (self.actorID, self.name)
     
-    def __str__(self):
-        return 'ID = %s\nName = %s\nAgent = %s\nParent = %s\nip = %s\nEnergy = %s\nHere = %s\nThere = %s' \
-         % (self.actorID, self.name, self.agent.agentID, self.parent, self.ip, self.energy, self.here, self.there)
+    def __repr__(self):
+        try:
+            parID = self.parent.actorID
+        except AttributeError:
+            parID = None
+
+        return 'ID=%s,Name=%s,Agent=%s,Parent=%s,ip=%s,Energy=%s,Here=%s,There=%s' \
+         % (self.actorID, 
+            self.name, 
+            self.agent.agentID, 
+            parID, 
+            self.ip, 
+            self.energy, 
+            self.here.loc, 
+            self.there.loc)
         
     def __hash__(self):
         return self.actorID     
     
     def __eq__(self, other):
-        return self.actorID == other.actorID
+        try:
+            return self.actorID == other.actorID
+        except AttributeError:
+            return False
     
     def __nonzero__(self):
         '''
@@ -81,15 +96,28 @@ class Actor:
         '''
         return self.energy > 0
     
-    def randint(num1, num2):
+    def randint(self, num1, num2):
         '''
-        Deterministically get an x s.t. num1 <= x < num2
+        Deterministically get an x s.t. num1 <= x <= num2
         '''
-        stuff = (self.actorID, self.parent.actorID, self.agent.agentID, self.energy, self.direction, self.name, self.here.food, self.here.pheromone)
+        pid = None
+        try:
+            pid = self.parent.actorID
+        except AttributeError:
+            pass
+        
+        otherStuff = ()
+        try:
+            otherActor = self.there.actor
+            otherStuff = (otherActor.actorID, otherActor.energy, otherActor.direction, otherActor.name)
+        except AttributeError:
+            pass        
+        
+        stuff = (self.actorID, pid, self.agent.agentID, self.energy, self.direction, self.name, self.here.food, self.here.pheromone, self.there.food, self.there.pheromone) + otherStuff
         string = ('%s' * len(stuff)) % stuff
         higher = max(num1, num2)
         lower = min(num1, num2)
-        return (sha256(string) % (higher - lower)) + lower
+        return int((sha256(string) % (higher - lower + 1)) + lower)
         
     def tick(self):
         '''
@@ -97,6 +125,5 @@ class Actor:
         
         Return a set of modified cells
         '''
-        
-        # return (newHere, newThere)
-        return self.script.tick()
+
+        return self.script.tick(self)

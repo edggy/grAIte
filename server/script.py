@@ -133,8 +133,9 @@ def parseFile(fileName):
         for n, sen in enumerate(data):
             
             # Pack the location of the n'th tick
-            tickPoints.append(f.tell()+1)
-            packAt(f, n*fmtSize, tickPoints[-1])
+            loc = int(f.tell()+1)
+            tickPoints.append(loc)
+            packAt(f, n*fmtSize, loc)
             
             # Construct the sentence
             sentence = '\n' +  ' '.join(map(str, sen))
@@ -166,6 +167,7 @@ class Script:
         else:
             self.defaultCacheSize = cacheSize
         self.cacheSize = 0
+        self.maxCacheSize = 2 * self.defaultCacheSize
         self.cacheStart = 0
         self.cache = StringIO()
 
@@ -178,7 +180,8 @@ class Script:
         try:
             return self.tickPoints[self.ip]
         except IndexError:
-            return 0
+            self.ip = 0
+            return self.tickPoints[0]
         
     def __copy__(self):
         clone = type(self)()
@@ -192,23 +195,24 @@ class Script:
     
     def next(self):
         try:
-            if self.rawip < self.cacheStart or self.rawip >= self.cacheStart + self.cacheSize:
+            if self.rawip < self.cacheStart or self.rawip >= self.cacheStart + self.cacheSize or self.cacheSize > self.maxCacheSize:
                 self.getCache()
                 if self.rawip >= self.cacheStart + self.cacheSize:
                     return
         except IndexError:
             return
         
-        try:
-            self.cache.seek(self.rawip - self.cacheStart)
-            self.ip += 1
-            return parseSentence(self.cache).next()
-        
-        except ParseException:
+        while True:
             try:
-                self.addCache()
-            except EOFError:
-                return        
+                self.cache.seek(self.rawip - self.cacheStart)
+                self.ip += 1
+                return parseSentence(self.cache).next()
+            
+            except ParseException:
+                try:
+                    self.addCache()
+                except EOFError:
+                    return        
     
     def __iter__(self):
         sen = self.next()
@@ -227,7 +231,7 @@ class Script:
             self.cacheSize = len(data)
             
     def addCache(self, amount = None):
-        cacheLength = len(self.cache)
+        cacheLength = self.cacheSize
         
         if amount is None:
             amount = cacheLength
@@ -237,7 +241,7 @@ class Script:
             data = f.read(amount)
             if data == '':
                 raise EOFError('Reached EOF')
-            self.cache.write(StringIO(data))
+            self.cache.write(data)
             self.cacheSize += len(data)
         
     """def nextOps(self):
@@ -277,13 +281,21 @@ class Script:
             p = opstack.pop()
             if p in opcodes.OP_CODES:
                 op = opcodes.OP_CODES[p]
-                if len(argStack) > op.arity:
+                if len(argStack) >= op.arity:
                     args = [argStack.pop() for i in range(op.arity)]
-                    result = op.function(actor, *args)
-                    if result is not None:
-                        argStack.append(result)
+                else:
+                    raise ParseException('Not enough arguments, OP:%s requires %d arguments got %d' % (p, op.arity, len(argStack)))
+                result = op(actor, *args)
+                if not op.tick:
+                    argStack.append(result)
             else:
                 argStack.append(p)
+        
+        if result is not None:
+            return result
+        
+        # No modified cells
+        return set([actor.here.next])
                 
     # opstack  = JG MA 25 50 MA 2 0 -1
     # argStack =
@@ -318,8 +330,8 @@ class Script:
     # opstack  =
     # argStack =    
     
-    def tick(actor):
-        self.execute(actor, self.next())
+    def tick(self, actor):
+        return self.execute(actor, self.next())
 
 class ParseException(Exception):
     pass

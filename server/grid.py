@@ -20,6 +20,12 @@ class Cell(object):
     def __hash__(self):
         return hash(self.loc)
     
+    def __eq__(self, other):
+        try:
+            return self.loc == other.loc
+        except AttributeError:
+            return self.loc == other
+    
     def __nonzero__(self):
         return self.data is not None  
     
@@ -40,10 +46,10 @@ class Cell(object):
             yield i
     
     def __copy__(self):
-        clone = type(self)(self.loc, self.grid, self.data)
+        return type(self)(self.loc, self.grid, self.data)
     
     def __deepcopy__(self, memo):  
-        clone = type(self)(copy.deepcopy(self.loc), self.grid, copy.deepcopy(self.data))
+        return type(self)(copy.deepcopy(self.loc), self.grid, copy.deepcopy(self.data))
     
     def move(self, vec):
         '''

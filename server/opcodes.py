@@ -25,12 +25,14 @@ class opcode(object):
         return self.function(actor, *args, **kargs)
     
 def setupMove(actor):
-    actor.cells[nextCell.t+1] = [actor.here.next]
-    '''cellData = actor.here.next.data
+    nextCell = actor.here.next
+    actor.path[nextCell.t] = [nextCell]
+    
+    cellData = nextCell.data
     if constants.OCCUPIED not in cellData:
-        cellData[constants.OCCUPIED] = {actor:0}
+        cellData[constants.OCCUPIED] = {actor:None}
     else:
-        cellData[constants.OCCUPIED][actor] = 0'''
+        cellData[constants.OCCUPIED][actor] = None
 
 def setAmount(deltaAmount, costPerItem, curAmount, maxNetCost = None, maxAmount = None):
 
@@ -70,9 +72,9 @@ def hereThere(f):
         return f(actor, actor.here, actor.there, *args, **kargs)
     return wrapper
 
-def hereThereCopy(f):
+def hereThereNext(f):
     def wrapper(actor, *args, **kargs):
-        return f(actor, copy.copy(actor.here), copy.copy(actor.there), *args, **kargs)
+        return f(actor, copy.copy(actor.here.next), copy.copy(actor.there.next), *args, **kargs)
     return wrapper
         
 @normalCost
@@ -108,7 +110,7 @@ def ATY(actor, here, there):
     return there.y
 
 @normalCost
-@hereThereCopy
+@hereThereNext
 def AK(actor, here, there):
     '''
     Attack
@@ -123,7 +125,7 @@ def AK(actor, here, there):
     return set([here, there])
     
 @normalCost
-@hereThereCopy
+@hereThereNext
 def CHG(actor, here, there):
     '''
     Charge
@@ -136,7 +138,7 @@ def CHG(actor, here, there):
     return set([here])
 
 @normalCost
-@hereThereCopy
+@hereThereNext
 def DE(actor, here, there):
     '''
     Defend
@@ -174,50 +176,53 @@ def ET(actor, here, there):
     '''
     Get Energy There
     '''
+    if there.actor is None:
+        return 0
+    
     return there.actor.energy
 
-@hereThereCopy
+@hereThereNext
 def FDH(actor, here, there, amount, cost = 1):
     '''
     Drop Food Here
     '''
-    amount = setAmount(amount, cost, here.food, agent.energy, constants.NUM_FOOD)
+    amount = setAmount(amount, cost, here.food, actor.energy, constants.NUM_FOOD)
     actor.energy -= amount*cost
     
     here.food += amount
     
     return set([here])
 
-@hereThereCopy
+@hereThereNext
 def FDT(actor, here, there, amount, cost = 1):
     '''
     Drop Food There
     '''
-    amount = setAmount(amount, cost, there.food, agent.energy, constants.NUM_FOOD)
+    amount = setAmount(amount, cost, there.food, actor.energy, constants.NUM_FOOD)
     actor.energy -= amount*cost
     
     there.food += amount
     
     return set([here, there])
 
-@hereThereCopy
+@hereThereNext
 def FEH(actor, here, there, amount, cost = -1):
     '''
     Eat Food Here
     '''
-    amount = setAmount(-amount, cost, here.food, agent.energy, constants.NUM_FOOD)
+    amount = setAmount(-amount, cost, here.food, actor.energy, constants.NUM_FOOD)
     actor.energy -= amount*cost
     
     here.food -= amount
     
     return set([here])
 
-@hereThereCopy
+@hereThereNext
 def FET(actor, here, there, amount, cost = -1):
     '''
     Eat Food There
     '''
-    amount = setAmount(-amount, cost, there.food, agent.energy, constants.NUM_FOOD)
+    amount = setAmount(-amount, cost, there.food, actor.energy, constants.NUM_FOOD)
     actor.energy -= amount*cost
     
     there.food -= amount
@@ -240,12 +245,12 @@ def FT(actor, here, there):
     '''
     return actor.there.food
 
-@hereThereCopy
+@hereThereNext
 def FMH(actor, here, there, amount, cost = 1):
     '''
     Move Food Here
     '''
-    amount = min(setAmount(-amount, cost, here.food, agent.energy, constants.NUM_FOOD), setAmount(amount, cost, there.food, agent.energy, constants.NUM_FOOD))
+    amount = min(setAmount(-amount, cost, here.food, actor.energy, constants.NUM_FOOD), setAmount(amount, cost, there.food, actor.energy, constants.NUM_FOOD))
     actor.energy -= amount*cost
     
     here.food += amount
@@ -253,12 +258,12 @@ def FMH(actor, here, there, amount, cost = 1):
     
     return set([here, there])
 
-@hereThereCopy
+@hereThereNext
 def FMT(actor, here, there, amount, cost = 1):
     '''
     Move Food There
     '''
-    amount = min(setAmount(amount, cost, here.food, agent.energy, constants.NUM_FOOD), setAmount(-amount, cost, there.food, agent.energy, constants.NUM_FOOD))
+    amount = min(setAmount(amount, cost, here.food, actor.energy, constants.NUM_FOOD), setAmount(-amount, cost, there.food, actor.energy, constants.NUM_FOOD))
     actor.energy -= amount*cost
     
     here.food -= amount
@@ -272,7 +277,7 @@ def JE(actor, num1, num2, offset):
     Jump Equal	
     '''
     if num1 == num2:
-        actor.script.ip += offset
+        actor.script.ip += offset-1
 
 @normalCost
 def JG(actor, num1, num2, offset):
@@ -280,7 +285,7 @@ def JG(actor, num1, num2, offset):
     Jump Greater
     '''
     if num1 > num2:
-        actor.script.ip += offset
+        actor.script.ip += offset-1
 
 @normalCost
 def JL(actor, num1, num2, offset):
@@ -288,7 +293,7 @@ def JL(actor, num1, num2, offset):
     Jump Less
     '''
     if num1 < num2:
-        actor.script.ip += offset
+        actor.script.ip += offset-1
 
 @normalCost
 def JN(actor, num1, num2, offset):
@@ -296,14 +301,14 @@ def JN(actor, num1, num2, offset):
     Jump Not Equal
     '''
     if num1 != num2:
-        actor.script.ip += offset
+        actor.script.ip += offset-1
 
 @normalCost
 def JU(actor, offset):
     '''
     Jump Unconditionally
     '''
-    actor.script.ip += offset
+    actor.script.ip += offset-1
 
 @normalCost
 def MA(actor, num1, num2):
@@ -388,10 +393,13 @@ def NT(actor, here, there):
     '''
     Get Actor Name There
     '''
-    return there.actor.name
+    
+    if there.actor is not None:
+        return there.actor.name
+    return 0
 
 @normalCost
-@hereThereCopy
+@hereThereNext
 def NOP(actor, here, there):
     '''
     No Op	
@@ -399,7 +407,7 @@ def NOP(actor, here, there):
     return set([here])
 
 @normalCost
-@hereThereCopy
+@hereThereNext
 def NS(actor, here, there, name):
     '''
     Set Actor Name
@@ -407,24 +415,24 @@ def NS(actor, here, there, name):
     actor.name = name
     return set([here])
 
-@hereThereCopy
+@hereThereNext
 def PAH(actor, here, there, amount, cost = 1):
     '''
     Add Pheromones Here
     '''
-    amount = setAmount(amount, cost, here.pheromone, agent.energy, constants.NUM_PHEROMONES)
+    amount = setAmount(amount, cost, here.pheromone, actor.energy, constants.NUM_PHEROMONES)
     actor.energy -= amount*cost
     
     here.pheromone += amount
         
     return set([here])       
 
-@hereThereCopy
+@hereThereNext
 def PAT(actor, here, there, amount, cost = 1):
     '''
     Add Pheromones There
     '''
-    amount = setAmount(amount, cost, there.pheromone, agent.energy, constants.NUM_PHEROMONES)
+    amount = setAmount(amount, cost, there.pheromone, actor.energy, constants.NUM_PHEROMONES)
     actor.energy -= amount*cost
     
     there.pheromone += amount
@@ -447,36 +455,36 @@ def PT(actor, here, there):
     '''
     return there.pheromone
 
-@hereThereCopy
+@hereThereNext
 def PRH(actor, here, there, amount, cost = 1):
     '''
     Remove Pheromones Here
     '''
-    amount = setAmount(-amount, cost, here.pheromone, agent.energy, constants.NUM_PHEROMONES)
+    amount = setAmount(-amount, cost, here.pheromone, actor.energy, constants.NUM_PHEROMONES)
     actor.energy -= amount*cost
     
     here.pheromone -= amount
     
     return set([here])
 
-@hereThereCopy
+@hereThereNext
 def PRT(actor, here, there, amount, cost = 1):
     '''
     Remove Pheromones There
     '''
-    amount = setAmount(-amount, cost, there.pheromone, agent.energy, constants.NUM_PHEROMONES)
+    amount = setAmount(-amount, cost, there.pheromone, actor.energy, constants.NUM_PHEROMONES)
     actor.energy -= amount*cost
     
     there.pheromone -= amount
     
     return set([here, there])
 
-@hereThereCopy
+@hereThereNext
 def S(actor, here, there, amount, cost = 1):
     '''
     Split
     '''
-    amount = setAmount(amount, cost, 0, agent.energy)
+    amount = setAmount(amount, cost, 0, actor.energy)
     actor.energy -= amount*cost
     
     newActor = actor.world.newActor(actor.agent, there, actor.direction, amount, actor.ip, 0, actor)
@@ -490,8 +498,6 @@ def TL(actor, here, there):
     Turn Left
     '''
     actor.direction = constants.DIRECTIONS_LEFT[actor.direction]
-    
-    return set([here])
 
 @normalCost
 @hereThere
@@ -500,8 +506,6 @@ def TR(actor, here, there):
     Turn Right
     '''
     actor.direction = constants.DIRECTIONS_RIGHT[actor.direction]
-    
-    return set([here])
 
 def TT(actor, amount, cost = 1):
     '''
@@ -511,18 +515,50 @@ def TT(actor, amount, cost = 1):
     actor.energy -= cost*2**amount
 
 @normalCost
-@hereThereCopy
+@hereThere
 def X(actor, here, there):
     '''
     Move Forward
     '''
     
-    actor.cells[nextCell.t+1].insert(0, actor.there.next)
+    here, there = here.next, there.next
     
-    #there.data[constants.OCCUPIED][actor] = 1
-    #here.data[constants.OCCUPIED][actor] = 2
+    if constants.OCCUPIED not in there.data:
+        # Nobody is there yet
+        
+        # Set my location there and here as my backup
+        there.data[constants.OCCUPIED] = {actor:here}
+        
+        # Remove my claim here
+        del here.data[constants.OCCUPIED][actor]
+        
+        actor.path[here.t].insert(0, there)
+        
+    else:
+        # Somebody is there or trying to move there
+        for otherActor, backupLoc in copy.copy(there.data[constants.OCCUPIED]).iteritems():
+            if backupLoc is not None:
+                # Someone else is trying to move here too
+                
+                # Remove them from moving there
+                del there.data[constants.OCCUPIED][otherActor]
+                
+                # Put them in their backup
+                backupLoc.data[constants.OCCUPIED][otherActor] = None
+                
+                otherActor.path[there.t] = [backupLoc]
+                
+        # Keep my claim here since I won't be moving
     
     return set([here, there])
+
+@normalCost
+def Z(actor, value):
+    '''
+    Print value
+    For debugging only
+    '''
+    print 'Value = %s' % value
 
 
 OP_CODES = {
@@ -574,5 +610,6 @@ OP_CODES = {
     'TL':opcode(TL, 0, True),
     'TR':opcode(TR, 0, True),
     'TT':opcode(TT, 1, True),
-    'X':opcode(X, 0, True)
+    'X':opcode(X, 0, True),
+    'Z':opcode(Z, 1, True)
     }
