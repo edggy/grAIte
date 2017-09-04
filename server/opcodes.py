@@ -27,6 +27,8 @@ class opcode(object):
 def setupMove(actor):
     nextCell = actor.here.next
     actor.path[nextCell.t] = [nextCell]
+    actor.history[nextCell.t]['sentence'] = actor.sentence
+    actor.history[actor.here.t].update({'here':actor.here, 'there':actor.there, 'direction':actor.direction, 'energy':actor.energy, 'status':actor.status, 'name':actor.name, 'ip':actor.ip})
     
     cellData = nextCell.data
     if constants.OCCUPIED not in cellData:
@@ -34,8 +36,57 @@ def setupMove(actor):
     else:
         cellData[constants.OCCUPIED][actor] = None
 
-def setAmount(deltaAmount, costPerItem, curAmount, maxNetCost = None, maxAmount = None):
+def setAmount(deltaAmount, costPerItem = None, fromAmount = None, toAmount = None, maxFrom = None, maxTo = None, funds = None, maxFunds = None):
+    # Set delta such that:
+    # - 0 <= fromAmount - deltaAmount <= maxFrom
+    # - 0 <= toAmount + deltaAmount <= maxTo
+    # - 0 <= funds - abs(deltaAmount) * costPerItem <= maxFunds
 
+    deltas = [deltaAmount]
+    
+    if fromAmount is not None:
+        newFrom = fromAmount - deltaAmount
+        if newFrom < 0:
+            # Removed too much
+            deltas.append(fromAmount)
+        elif maxFrom is not None and newFrom > maxFrom:
+            # Added too much
+            deltas.append(fromAmount - maxFrom)
+            
+    if toAmount is not None:
+        newTo = toAmount + deltaAmount
+        if newTo < 0:
+            # Removed too much
+            deltas.append(-toAmount)
+        elif maxTo is not None and newTo > maxTo:
+            # Added too much
+            deltas.append(maxTo - toAmount)
+            
+    if costPerItem is not None:
+        cost = abs(deltaAmount) * costPerItem
+        if funds is not None:
+            net = funds - cost
+            if net < 0:
+                # Can't afford
+                maxAfford = funds / costPerItem
+                if deltaAmount > 0: deltas.append(maxAfford)
+                elif deltaAmount < 0: deltas.append(-maxAfford)
+            elif maxFunds is not None and net > maxFunds:
+                # Would give too much funds
+                maxBuy = (maxFunds-funds)/-costPerItem
+                if deltaAmount > 0: deltaAmount = deltas.append(maxBuy)
+                elif deltaAmount < 0: deltaAmount = deltas.append(-maxBuy)
+    
+    deltas = ((abs(i), i) for i in deltas)
+    return min(deltas)[1]
+    
+
+'''def setAmount(deltaAmount, costPerItem, curAmount, funds = None, maxAmount = None, maxFunds = None):
+    # Set delta such that:
+    # - The cell has between 0 and maxAmount
+    # - The cost is less than funds
+    # - If the cost is negative then ensure that funds-cost <= maxFunds
+    
     newAmount = curAmount + deltaAmount
     
     if maxAmount is not None and newAmount > maxAmount:
@@ -45,17 +96,28 @@ def setAmount(deltaAmount, costPerItem, curAmount, maxNetCost = None, maxAmount 
         # Can't remove to less than 0
         deltaAmount = -curAmount
     
-    if maxNetCost is not None:
+    if funds is not None:
         netCost = abs(deltaAmount) * costPerItem
         
-        if netCost > maxNetCost:
-            # Paying more than we have
-            if deltaAmount > 0:
-                deltaAmount = maxNetCost / costPerItem
-            else:
-                deltaAmount = -maxNetCost / costPerItem
+        if costPerItem > 0:
+            if netCost > funds:
+                # Paying more than we have
+                if deltaAmount > 0:
+                    deltaAmount = funds / costPerItem
+                else:
+                    deltaAmount = -funds / costPerItem
+        elif costPerItem < 0:        
+            newNet = funds - netCost
+            
+            if maxFunds is not None and newNet > maxFunds:
+                # We would end up with more than we can carry
+                # maxFunds = 100, cost = -3, funds = 95, deltaAmount = 2
+                
+                deltaAmount = (maxFunds-funds)/-costPerItem
+    else:
+        netCost = 0
         
-    return deltaAmount
+    return (deltaAmount, netCost)'''
 
 LITERAL_CODE = '0123456789b-'
 
@@ -186,9 +248,10 @@ def FDH(actor, here, there, amount, cost = 1):
     '''
     Drop Food Here
     '''
-    amount = setAmount(amount, cost, here.food, actor.energy, constants.NUM_FOOD)
-    actor.energy -= amount*cost
+    if amount < 0: amount = 0
+    amount = setAmount(amount, costPerItem=cost, toAmount=here.food, maxTo=constants.NUM_FOOD, funds=actor.energy, maxFunds=constants.NUM_ENERGY)
     
+    actor.energy -= amount * cost
     here.food += amount
     
     return set([here])
@@ -198,9 +261,10 @@ def FDT(actor, here, there, amount, cost = 1):
     '''
     Drop Food There
     '''
-    amount = setAmount(amount, cost, there.food, actor.energy, constants.NUM_FOOD)
-    actor.energy -= amount*cost
+    if amount < 0: amount = 0
+    amount = setAmount(amount, costPerItem=cost, toAmount=there.food, maxTo=constants.NUM_FOOD, funds=actor.energy, maxFunds=constants.NUM_ENERGY)
     
+    actor.energy -= amount * cost
     there.food += amount
     
     return set([here, there])
@@ -210,9 +274,10 @@ def FEH(actor, here, there, amount, cost = -1):
     '''
     Eat Food Here
     '''
-    amount = setAmount(-amount, cost, here.food, actor.energy, constants.NUM_FOOD)
-    actor.energy -= amount*cost
+    if amount < 0: amount = 0
+    amount = setAmount(amount, costPerItem=cost, fromAmount=here.food, maxFrom=constants.NUM_FOOD, funds=actor.energy, maxFunds=constants.NUM_ENERGY)
     
+    actor.energy -= amount*cost
     here.food -= amount
     
     return set([here])
@@ -222,9 +287,10 @@ def FET(actor, here, there, amount, cost = -1):
     '''
     Eat Food There
     '''
-    amount = setAmount(-amount, cost, there.food, actor.energy, constants.NUM_FOOD)
-    actor.energy -= amount*cost
+    if amount < 0: amount = 0
+    amount = setAmount(amount, costPerItem=cost, fromAmount=there.food, maxFrom=constants.NUM_FOOD, funds=actor.energy, maxFunds=constants.NUM_ENERGY)
     
+    actor.energy -= amount*cost
     there.food -= amount
     
     return set([here, there])
@@ -250,9 +316,12 @@ def FMH(actor, here, there, amount, cost = 1):
     '''
     Move Food Here
     '''
-    amount = min(setAmount(-amount, cost, here.food, actor.energy, constants.NUM_FOOD), setAmount(amount, cost, there.food, actor.energy, constants.NUM_FOOD))
-    actor.energy -= amount*cost
     
+    if amount < 0: amount = 0
+    amount = setAmount(amount, costPerItem=cost, fromAmount=there.food, toAmount=here.food, maxFrom=constants.NUM_FOOD, 
+                      maxTo=constants.NUM_FOOD, funds=actor.energy, maxFunds=constants.NUM_ENERGY)
+    
+    actor.energy -= amount*cost
     here.food += amount
     there.food -= amount
     
@@ -263,9 +332,13 @@ def FMT(actor, here, there, amount, cost = 1):
     '''
     Move Food There
     '''
-    amount = min(setAmount(amount, cost, here.food, actor.energy, constants.NUM_FOOD), setAmount(-amount, cost, there.food, actor.energy, constants.NUM_FOOD))
-    actor.energy -= amount*cost
+    if amount < 0: amount = 0
+    amount = setAmount(amount, costPerItem=cost, fromAmount=here.food, 
+                       toAmount=there.food, maxFrom=constants.NUM_FOOD, 
+                       maxTo=constants.NUM_FOOD, funds=actor.energy, 
+                      maxFunds=constants.NUM_ENERGY)
     
+    actor.energy -= amount*cost
     here.food -= amount
     there.food += amount
     
@@ -396,7 +469,7 @@ def NT(actor, here, there):
     
     if there.actor is not None:
         return there.actor.name
-    return 0
+    return -1
 
 @normalCost
 @hereThereNext
@@ -420,9 +493,10 @@ def PAH(actor, here, there, amount, cost = 1):
     '''
     Add Pheromones Here
     '''
-    amount = setAmount(amount, cost, here.pheromone, actor.energy, constants.NUM_PHEROMONES)
-    actor.energy -= amount*cost
+    if amount < 0: amount = 0
+    amount = setAmount(amount, costPerItem=cost, toAmount=here.pheromone, maxTo=constants.NUM_PHEROMONES, funds=actor.energy, maxFunds=constants.NUM_ENERGY)
     
+    actor.energy -= amount * cost
     here.pheromone += amount
         
     return set([here])       
@@ -432,9 +506,10 @@ def PAT(actor, here, there, amount, cost = 1):
     '''
     Add Pheromones There
     '''
-    amount = setAmount(amount, cost, there.pheromone, actor.energy, constants.NUM_PHEROMONES)
-    actor.energy -= amount*cost
+    if amount < 0: amount = 0
+    amount = setAmount(amount, costPerItem=cost, toAmount=there.pheromone, maxTo=constants.NUM_PHEROMONES, funds=actor.energy, maxFunds=constants.NUM_ENERGY)
     
+    actor.energy -= amount * cost
     there.pheromone += amount
     
     return set([here, there])    
@@ -460,9 +535,10 @@ def PRH(actor, here, there, amount, cost = 1):
     '''
     Remove Pheromones Here
     '''
-    amount = setAmount(-amount, cost, here.pheromone, actor.energy, constants.NUM_PHEROMONES)
-    actor.energy -= amount*cost
+    if amount < 0: amount = 0
+    amount = setAmount(amount, costPerItem=cost, fromAmount=here.pheromone, maxFrom=constants.NUM_PHEROMONES, funds=actor.energy, maxFunds=constants.NUM_ENERGY)
     
+    actor.energy -= amount*cost
     here.pheromone -= amount
     
     return set([here])
@@ -472,9 +548,10 @@ def PRT(actor, here, there, amount, cost = 1):
     '''
     Remove Pheromones There
     '''
-    amount = setAmount(-amount, cost, there.pheromone, actor.energy, constants.NUM_PHEROMONES)
-    actor.energy -= amount*cost
+    if amount < 0: amount = 0
+    amount = setAmount(amount, costPerItem=cost, fromAmount=there.pheromone, maxFrom=constants.NUM_PHEROMONES, funds=actor.energy, maxFunds=constants.NUM_ENERGY)
     
+    actor.energy -= amount*cost
     there.pheromone -= amount
     
     return set([here, there])
@@ -484,9 +561,10 @@ def S(actor, here, there, amount, cost = 1):
     '''
     Split
     '''
-    amount = setAmount(amount, cost, 0, actor.energy)
-    actor.energy -= amount*cost
+    if amount < 0: amount = 0
+    amount = setAmount(amount, costPerItem=cost, funds=actor.energy, maxFunds=constants.NUM_ENERGY)
     
+    actor.energy -= amount*cost
     newActor = actor.world.newActor(actor.agent, there, actor.direction, amount, actor.ip, 0, actor)
     
     return set([here, there])
@@ -523,7 +601,9 @@ def X(actor, here, there):
     
     here, there = here.next, there.next
     
-    if constants.OCCUPIED not in there.data:
+    actor.path[here.t].insert(0, there)
+    
+    '''if constants.OCCUPIED not in there.data:
         # Nobody is there yet
         
         # Set my location there and here as my backup
@@ -548,7 +628,7 @@ def X(actor, here, there):
                 
                 otherActor.path[there.t] = [backupLoc]
                 
-        # Keep my claim here since I won't be moving
+        # Keep my claim here since I won't be moving'''
     
     return set([here, there])
 
@@ -575,8 +655,8 @@ OP_CODES = {
     'ET':opcode(ET),
     'FDH':opcode(FDH, 1, True), 
     'FDT':opcode(FDT, 1, True), 
-    'FEH':opcode(FEH, 1, True), 
-    'FET':opcode(FET, 1, True), 
+    'FEH':opcode(FEH, 1, True, -1), 
+    'FET':opcode(FET, 1, True, -1), 
     'FH':opcode(FH), 
     'FT':opcode(FT),
     'FMT':opcode(FMT, 1, True), 
@@ -610,6 +690,6 @@ OP_CODES = {
     'TL':opcode(TL, 0, True),
     'TR':opcode(TR, 0, True),
     'TT':opcode(TT, 1, True),
-    'X':opcode(X, 0, True),
+    'X':opcode(X, 0, True, 10),
     'Z':opcode(Z, 1, True)
     }

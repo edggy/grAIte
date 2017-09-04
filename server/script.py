@@ -53,12 +53,22 @@ def parseLiteral(stream):
     return int(eval(num))
 
 def parseSentence(stream):
+    '''
+    Given a stream
+    '''
+    
+    # TODO: better check for optimized stream
     byte = stream.read(1)
     if byte not in startChars:
-        headerSize = unpackAt(stream, 0)
+        lenData = unpackAt(stream, 0)
+        headerSize = fmtSize * (lenData+1)
         stream.seek(headerSize, io.SEEK_SET)
+        optimized = True
+        
+        
     elif byte != '':
         stream.seek(-1, io.SEEK_CUR)
+        optimized = False
         
     sen = None
     tok = ''
@@ -120,11 +130,39 @@ def parseFile(fileName):
     # A sentence is a list of opcodes staring with a tick
     data = []
     sen = []
+    
     with open(fileName, 'rb+') as f:
+        try:
+            lenData = struct.unpack(fmt, f.read(fmtSize))[0]
+            # It is optimized if the first line
+            if lenData > 0:
+                optimized = True
+                tickPoints = [struct.unpack(fmt, f.read(fmtSize))[0] for i in xrange(lenData)]
+                ''' tickPoints = []
+                for i in xrange(lenData):
+                    chars = f.read(fmtSize)
+                    value = struct.unpack(fmt, chars)
+                    tickPoints.append(value)'''
+                    
+                for tickPoint in tickPoints:
+                    f.seek(tickPoint-1, io.SEEK_SET)
+                    startOfLine = f.read(2)
+                    if startOfLine[0] != '\n' or startOfLine[1] not in startChars:
+                        optimized = False
+                        break
+                if optimized:
+                    return tickPoints
+            
+        except struct.error:
+            optimized = False
+            
+        f.seek(0, io.SEEK_SET)
         for sen in parseSentence(f):
             data.append(sen)
         
-        headerSize = fmtSize * len(data)
+        headerSize = fmtSize * (len(data)+1)
+        
+        packAt(f, 0, len(data))
         
         # Jump to after the header
         f.seek(headerSize, io.SEEK_SET)
@@ -135,7 +173,7 @@ def parseFile(fileName):
             # Pack the location of the n'th tick
             loc = int(f.tell()+1)
             tickPoints.append(loc)
-            packAt(f, n*fmtSize, loc)
+            packAt(f, (n+1)*fmtSize, loc)
             
             # Construct the sentence
             sentence = '\n' +  ' '.join(map(str, sen))
@@ -170,10 +208,14 @@ class Script:
         self.maxCacheSize = 2 * self.defaultCacheSize
         self.cacheStart = 0
         self.cache = StringIO()
+        
+        self.sentenceCache = {}
 
         if self.scriptName is not None:
             self.tickPoints = parseFile(self.scriptName)
             self.getCache()
+            
+        self.maxIP = len(self.tickPoints)
     
     @property
     def rawip(self):
@@ -193,7 +235,13 @@ class Script:
         
         return clone
     
-    def next(self):
+    def next(self, tick = True):
+        if self.ip in self.sentenceCache:
+            sen = self.sentenceCache[self.ip]
+            if tick:
+                self.ip = (self.ip + 1) % self.maxIP
+            return sen
+            
         try:
             if self.rawip < self.cacheStart or self.rawip >= self.cacheStart + self.cacheSize or self.cacheSize > self.maxCacheSize:
                 self.getCache()
@@ -205,8 +253,12 @@ class Script:
         while True:
             try:
                 self.cache.seek(self.rawip - self.cacheStart)
-                self.ip += 1
-                return parseSentence(self.cache).next()
+                
+                sen = parseSentence(self.cache).next()
+                self.sentenceCache[self.ip] = sen
+                if tick:
+                    self.ip = (self.ip + 1) % self.maxIP
+                return sen
             
             except ParseException:
                 try:
@@ -219,12 +271,36 @@ class Script:
         while sen is not None:
             yield sen
             sen = self.next()
+            
+    def __getitem__(self, key):
+        if key <= -len(self.tickPoints) or key >= len(self.tickPoints):
+            raise IndexError('Index out of bounds')
+        
+        try:
+            return self.sentenceCache[key]
+        except KeyError:
+            pass
+        rawKey = self.tickPoints[key]
+        if rawKey >= self.cacheStart and rawKey < self.cacheStart + self.cacheSize:
+            try:
+                self.cache.seek(rawKey - self.cacheStart)
+                sen = parseSentence(self.cache).next()
+                self.sentenceCache[key] = sen
+                return sen
+            
+            except ParseException:
+                pass
+        with open(self.scriptName, 'rb') as f:
+            f.seek(rawKey, io.SEEK_SET)
+            sen = parseSentence(f).next()
+            self.sentenceCache[key] = sen
+            return sen            
     
     def getCache(self, amount = None):
         if amount is None:
             amount = self.defaultCacheSize
         self.cacheStart = max(self.rawip - amount/3, 0)
-        with open(self.scriptName) as f:
+        with open(self.scriptName, 'rb') as f:
             f.seek(self.cacheStart)
             data = f.read(amount)
             self.cache = StringIO(data) 
@@ -236,32 +312,13 @@ class Script:
         if amount is None:
             amount = cacheLength
 
-        with open(self.scriptName) as f:
+        with open(self.scriptName, 'rb') as f:
             f.seek(self.cacheStart + cacheLength)
             data = f.read(amount)
             if data == '':
                 raise EOFError('Reached EOF')
             self.cache.write(data)
             self.cacheSize += len(data)
-        
-    """def nextOps(self):
-        '''
-        Gets the next list of op codes to be evaluated
-        '''
-        
-        if ip < self.cacheStart or ip >= cacheStart + len(self.cache):
-            self.getCache()
-        
-        sen = None
-        while sen is None:
-            try:
-                self.cache.seek(ip - self.cacheStart)
-                sen = parseSentence(self.cache).next()
-            except ParseException:
-                size = len(self.cache)
-                self.addCache()
-        
-        return sen"""
     
     def execute(self, actor, sentence):
         '''
@@ -271,7 +328,7 @@ class Script:
         
         # JG MA 25 50 MA 2 0 -1
         
-        actor.status = sentence[0]
+        #actor.status = sentence[0]
         
         opstack = deque(sentence)
         
@@ -282,12 +339,14 @@ class Script:
             if p in opcodes.OP_CODES:
                 op = opcodes.OP_CODES[p]
                 if len(argStack) >= op.arity:
-                    args = [argStack.pop() for i in range(op.arity)]
+                    args = tuple([argStack.pop() for i in range(op.arity)])
                 else:
                     raise ParseException('Not enough arguments, OP:%s requires %d arguments got %d' % (p, op.arity, len(argStack)))
                 result = op(actor, *args)
                 if not op.tick:
                     argStack.append(result)
+                else:
+                    actor.status = (p,) + args
             else:
                 argStack.append(p)
         

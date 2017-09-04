@@ -13,8 +13,9 @@ class Agent:
         self.agentID = agentID
         
         if scriptName is None:
-            
             self.scriptName = os.path.join(constants.SCRIPT_PATH, '%d.script' % agentID)
+        else:
+            self.scriptName = os.path.join(constants.SCRIPT_PATH, '%s.script' % scriptName)
             
         if actors is None:
             self.actors = {}

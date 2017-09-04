@@ -42,8 +42,8 @@ class Cell(Cell3Dt):
             self.pheromone = 0            
         
         # Get the cell below ours's food and pheromones
-        if self.loc[2] <= 0 and (numFood is None or numPheromone is None):
-            below = self.grid[self.loc - vector.I(2, 3, -1)]
+        if self.loc[2] > 0 and (numFood is None or numPheromone is None):
+            below = self.grid[self.loc - vector.I(2, 3, 1)]
             if numFood is None:
                 self.food = below.food
             if numPheromone is None:
@@ -58,7 +58,7 @@ class Cell(Cell3Dt):
         return ''.join(('loc=%r,food=%r,pheromone=%r,actor=(%s)' % (self.loc, self.food, self.pheromone, self.actor)).split())
     
     def __nonzero__(self):
-        return self.actor is not None and self.food > 0 and self.pheromone > 0
+        return self.actor is not None or self.food > 0 or self.pheromone > 0
 
     def __copy__(self):
         return type(self)(self.loc, self.grid, self.actor, self.food, self.pheromone)

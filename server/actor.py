@@ -1,6 +1,7 @@
 
 import copy
 import hashlib
+from collections import defaultdict
 
 import cell
 import script
@@ -9,7 +10,7 @@ from Vector.vector import Vector
 
 sha256 = lambda x: int(hashlib.new('sha256', x).hexdigest(), 16)
 
-class Actor:
+class Actor(object):
     '''
     An Actor is a "ant"
     
@@ -54,6 +55,8 @@ class Actor:
         
         self.path = {}
         
+        self.history = defaultdict(dict)
+        
     @property
     def ip(self):
         return self.script.ip
@@ -61,6 +64,10 @@ class Actor:
     @property
     def there(self):
         return self.here + self.direction
+    
+    @property
+    def sentence(self):
+        return self.script.next(tick=False)
         
     def __str__(self):
         return '%s: %s' % (self.actorID, self.name)
@@ -127,3 +134,18 @@ class Actor:
         '''
 
         return self.script.tick(self)
+    
+class PastActor(Actor):
+    def __init__(self, actor, tick):
+        self.actor = actor
+        self.tick = tick
+        
+    def __getattribute__(self, attr):
+        tick = Actor.__getattribute__(self, 'tick')
+        actor = Actor.__getattribute__(self, 'actor')
+        if tick in actor.history:
+            history = actor.history[tick]
+            if attr in history:
+                return history[attr]
+        
+        return Actor.__getattribute__(actor, attr)

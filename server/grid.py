@@ -1,6 +1,8 @@
 import Vector.vector as vector
 from ast import literal_eval
 import copy
+import threading
+from collections import defaultdict
 
 class Cell(object):
     '''
@@ -124,6 +126,7 @@ class Grid(object):
         self.cellGenerator = cellGenerator
         self.cleanupMax = cleanupMax
         self.cleanupData = 0
+        self.locks = defaultdict(threading.RLock)
     
     def __getitem__(self, key):
         '''
@@ -147,22 +150,25 @@ class Grid(object):
             raise KeyError('Key is of wrong dimension')
         
         key = vector.Vector(*key)
-        
-        try:
-            self.data[key].data = value
-        except KeyError:
-            self.data[key] = self.cellGenerator(key, self, value)
+        with self.locks[key]:
+            try:
+                self.data[key].data = value
+            except KeyError:
+                self.data[key] = self.cellGenerator(key, self, value)
+            self.cleanup()
             
-        self.cleanup()
             
     def __delitem__(self, key):
         key = vector.Vector(*key)
-        del self.data[key]
-        self.cleanup()
+        print '__delitem__: need All lock'
+        with self.locks[key]:
+            print '__delitem__: got All lock'
+            del self.data[key]
+            self.cleanup()
             
     def __iter__(self):
-        self.cleanup(True)
-        for key in self.data:
+        self.cleanup()
+        for key in copy.copy(self.data):
             yield self.data[key]
             
     def __copy__(self):
@@ -186,15 +192,16 @@ class Grid(object):
         return clone
             
     def cleanup(self, force = False, isEmpty = None):
-        if empty is None:
-            empty = lambda x: not bool(x)
+        if isEmpty is None:
+            isEmpty = lambda x: not bool(x)
             
-        self.cleanupData += 1
+        '''self.cleanupData += 1
         if force or self.cleanupData > self.cleanupMax:
             self.cleanupData = 0
-            for cell in self:
-                if empty(cell):
-                    del self[cell.loc]
+            print 'cleanup: want All lock'
+            if self.locks['all'].acquire(False):
+                self.data = {k:v for k,v in self.data.iteritems() if not isEmpty(v)}
+                self.locks['all'].release()'''
     
     def load(self, stream, cellGenerator = None):
         if cellGenerator is not None:
